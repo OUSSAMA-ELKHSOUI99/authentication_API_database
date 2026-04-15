@@ -63,6 +63,7 @@ def register(request: AuthRequest):
     conn = get_db_connection()
     cursor = conn.cursor()
     
+    
     try:
         # 1. Check if email exists
         cursor.execute("SELECT id FROM users WHERE email = %s", (request.email,))
@@ -106,14 +107,32 @@ def login(request: AuthRequest):
 @app.post("/refresh")
 def refresh_session(request: RefreshRequest):
     try:
-        # Verify the old refresh token
+        # 1. Verify the old refresh token is valid and not expired
         payload = jwt.decode(request.refresh_token, JWT_SECRET, algorithms=["HS256"])
         if payload.get("type") != "refresh":
             raise HTTPException(status_code=401, detail="Invalid token type")
             
-        # In a real app, you might look up the user's email again here using payload['id']
-        # For simplicity, we just generate new tokens using the ID
-        return create_tokens(payload['id'], "user@email.com")
+        user_id = payload['id']
+
+        # 2. Open a database connection to look up the user
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        try:
+            cursor.execute("SELECT email FROM users WHERE id = %s", (user_id,))
+            user = cursor.fetchone()
+
+            # 3. If the user doesn't exist in the DB anymore, reject the refresh!
+            if not user:
+                raise HTTPException(status_code=401, detail="User no longer exists")
+
+            # 4. Generate new tokens using the fresh email from the database
+            return create_tokens(user_id, user['email'])
+            
+        finally:
+            # Always close your connections!
+            cursor.close()
+            conn.close()
         
     except jwt.ExpiredSignatureError:
         raise HTTPException(status_code=401, detail="Refresh token expired, please log in again")
