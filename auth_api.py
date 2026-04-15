@@ -13,7 +13,7 @@ app = FastAPI(title="Indie App Core API")
 DB_CONFIG = {
     "dbname": "indie_core",
     "user": "postgres",
-    "password": "YOUR_POSTGRES_PASSWORD",
+    "password": "oussama", # setup_db.py and auth_api.py have the password "oussama" written directly in the code. You must change this before going to production
     "host": "127.0.0.1", # Python runs on your PC, so it uses localhost!
     "port": "5432"
 }
@@ -138,3 +138,6 @@ def refresh_session(request: RefreshRequest):
         raise HTTPException(status_code=401, detail="Refresh token expired, please log in again")
     except jwt.InvalidTokenError:
         raise HTTPException(status_code=401, detail="Invalid token")
+
+
+# start the script locally: uvicorn auth_api:app --reload
