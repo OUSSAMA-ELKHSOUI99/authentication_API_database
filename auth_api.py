@@ -43,7 +43,8 @@ def create_tokens(user_id: str, email: str):
     # Access Token (15 mins)
     access_payload = {
         "id": user_id, "email": email, "type": "access",
-        "exp": datetime.datetime.utcnow() + datetime.timedelta(minutes=15)
+        # "exp": datetime.datetime.utcnow() + datetime.timedelta(minutes=15)
+        "exp": datetime.datetime.utcnow() + datetime.timedelta(seconds=10) # change token lifetime to 10s for test
     }
     access_token = jwt.encode(access_payload, JWT_SECRET, algorithm="HS256")
 
@@ -141,3 +142,32 @@ def refresh_session(request: RefreshRequest):
 
 
 # start the script locally: uvicorn auth_api:app --reload
+
+
+
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from fastapi import Depends
+
+security = HTTPBearer()
+
+# This function acts as a guard. It checks the token before letting the user in.
+def verify_access_token(credentials: HTTPAuthorizationCredentials = Depends(security)):
+    token = credentials.credentials
+    try:
+        payload = jwt.decode(token, JWT_SECRET, algorithms=["HS256"])
+        if payload.get("type") != "access":
+            raise HTTPException(status_code=401, detail="Not an access token")
+        return payload
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(status_code=401, detail="Token expired") # This triggers the Interceptor!
+    except jwt.InvalidTokenError:
+        raise HTTPException(status_code=401, detail="Invalid token")
+
+# Here is our protected route!
+@app.get("/secret-dashboard")
+def get_secret_data(user: dict = Depends(verify_access_token)):
+    # If the code reaches here, the token was 100% valid.
+    return {
+        "message": "Access Granted!", 
+        "data": f"Welcome to the VIP area, {user['email']}"
+    }
